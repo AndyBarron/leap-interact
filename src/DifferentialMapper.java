@@ -5,20 +5,17 @@ import java.awt.Robot;
 import java.awt.event.InputEvent;
 import java.io.IOException;
 
-import org.jnativehook.GlobalScreen;
-import org.jnativehook.NativeHookException;
-import org.jnativehook.keyboard.NativeKeyEvent;
-import org.jnativehook.keyboard.NativeKeyListener;
-
 import com.google.common.collect.EvictingQueue;
 import com.leapmotion.leap.Controller;
 import com.leapmotion.leap.Controller.PolicyFlag;
+import com.leapmotion.leap.Finger;
+import com.leapmotion.leap.FingerList;
 import com.leapmotion.leap.Frame;
+import com.leapmotion.leap.Hand;
 import com.leapmotion.leap.Listener;
-import com.leapmotion.leap.Pointable;
 import com.leapmotion.leap.Vector;
 
-public class DifferentialMapper extends Listener implements NativeKeyListener {
+public class DifferentialMapper extends Listener {
 	
 	private float interactionZ = 0;
 	private float scaleRangeZ = 250;
@@ -30,8 +27,6 @@ public class DifferentialMapper extends Listener implements NativeKeyListener {
 	private boolean pressingClick = false;
 	private boolean clicking = false;
 	
-	//private Vector lastPointer = null;
-
 	public DifferentialMapper(Robot r, int pointerHistorySize) {
 		super();
 		this.robot = r;
@@ -64,13 +59,13 @@ public class DifferentialMapper extends Listener implements NativeKeyListener {
 		Frame f = controller.frame();
 		// Robot r = this.robot;
 		
-		if (f.pointables().count() == 0) {
+		if (f.hands().count() != 1 ) {
 			this.pointerHistory.clear();
 			return;
 		}
 		
-		Pointable p = f.pointables().frontmost();
-		Vector pointer = p.tipPosition();
+		Finger indexFinger = f.hands().get(0).fingers().fingerType(Finger.Type.TYPE_INDEX).get(0);
+		Vector pointer = indexFinger.tipPosition();
 		
 		if (pointer.getZ() > interactionZ) {
 			this.pointerHistory.clear();
@@ -140,30 +135,6 @@ public class DifferentialMapper extends Listener implements NativeKeyListener {
 		this.robot.mouseRelease(InputEvent.BUTTON1_DOWN_MASK);
 	}
 
-	@Override
-	public void nativeKeyPressed(NativeKeyEvent key) {
-		int code = key.getKeyCode();
-		if(code == KEY_CODE_CLICK && !this.pressingClick) {
-			this.pressingClick = true;
-			this.mouseClick();
-		} else if (this.pressingClick && code != KEY_CODE_CLICK) {
-			this.mouseRelease();
-		}
-	}
-
-	@Override
-	public void nativeKeyReleased(NativeKeyEvent key) {
-		int code = key.getKeyCode();
-		if(code == KEY_CODE_CLICK && this.pressingClick) {
-			this.pressingClick = false;
-			this.mouseRelease();
-		}
-	}
-
-	@Override
-	public void nativeKeyTyped(NativeKeyEvent key) {
-		
-	}
 
 }
 
@@ -189,17 +160,6 @@ class DMTest {
 		// Have the sample listener receive events from the controller
 		controller.addListener(listener);
 		
-		// set up native key listening
-		try {
-			GlobalScreen.registerNativeHook();
-		} catch (NativeHookException e1) {
-			// TODO Auto-generated catch block
-			e1.printStackTrace();
-			System.err.println("Couldn't register native hook");
-		}
-		
-		GlobalScreen.getInstance().addNativeKeyListener(listener);
-
 		// Keep this process running until Enter is pressed
 		System.out.println("Press Enter to quit...");
 		try {
