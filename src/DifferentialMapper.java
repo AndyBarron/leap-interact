@@ -5,11 +5,9 @@ import java.awt.Robot;
 import java.awt.event.InputEvent;
 import java.io.IOException;
 
-import com.google.common.collect.EvictingQueue;
 import com.leapmotion.leap.Controller;
 import com.leapmotion.leap.Controller.PolicyFlag;
 import com.leapmotion.leap.Finger;
-import com.leapmotion.leap.FingerList;
 import com.leapmotion.leap.Frame;
 import com.leapmotion.leap.Hand;
 import com.leapmotion.leap.Listener;
@@ -21,16 +19,13 @@ public class DifferentialMapper extends Listener {
 	private float scaleRangeZ = 250;
 
 	private final Robot robot;
-	private final EvictingQueue<Vector> pointerHistory;
 	
-	static final int KEY_CODE_CLICK = 157; // TODO don't hard code this
-	private boolean pressingClick = false;
 	private boolean clicking = false;
+	private Vector lastPointer = null;
 	
 	public DifferentialMapper(Robot r, int pointerHistorySize) {
 		super();
 		this.robot = r;
-		this.pointerHistory = EvictingQueue.create(pointerHistorySize);
 	}
 
 	public void onInit(Controller controller) {
@@ -60,53 +55,40 @@ public class DifferentialMapper extends Listener {
 		// Robot r = this.robot;
 		
 		if (f.hands().count() != 1 ) {
-			this.pointerHistory.clear();
+			this.lastPointer = null;
 			return;
 		}
 		
-		Finger indexFinger = f.hands().get(0).fingers().fingerType(Finger.Type.TYPE_INDEX).get(0);
-		Vector pointer = indexFinger.tipPosition();
+		Hand hand = f.hands().get(0);
+		Finger indexFinger = hand.fingers().fingerType(Finger.Type.TYPE_INDEX).get(0);
+		Vector pointer = indexFinger.stabilizedTipPosition();
+		float pinchLevel = hand.pinchStrength();
 		
 		if (pointer.getZ() > interactionZ) {
-			this.pointerHistory.clear();
+			this.lastPointer = null;
 			return;
 		}
 		
-		boolean added = false;
-		if (!this.pointerHistory.isEmpty()) {
-			// do stuff
-			// Vector delta = pointer.minus(lastPointer);
-			Vector lastPointer = this.getMeanPointer();
-			this.pointerHistory.add(new Vector(pointer));
-			added = true;
-			Vector curAvg = this.getMeanPointer();
-			Vector delta = curAvg.minus(lastPointer);
+		if(pinchLevel >= 0.9f) {
+			this.mouseClick();
+		} else {
+			this.mouseRelease();
+		}
+		
+		if (this.lastPointer != null) {
+			Vector delta = pointer.minus(lastPointer);
 			float baseMult = 3.5f;
-			float mult = Util.mapRange(pointer.getZ(), interactionZ, interactionZ-scaleRangeZ, baseMult, 0, true);
+			//float mult = Util.mapRange(pointer.getZ(), interactionZ, interactionZ-scaleRangeZ, baseMult, 0, true);
+			float mult = clicking ? baseMult/2.0f : (1.0f-pinchLevel)*baseMult;
 			int dx = Math.round(delta.getX()*mult);
 			int dy = -Math.round(delta.getY()*mult);
 			this.mouseTranslate(dx,dy);
 		}
+		this.lastPointer = pointer;
 		
-		if(!added){
-			this.pointerHistory.add(new Vector(pointer));
-		}
 		
 	}
 
-	private Vector getMeanPointer() {
-		if (this.pointerHistory.isEmpty()) {
-			return null;
-		}
-
-		Vector total = new Vector();
-		for (Vector v : this.pointerHistory) {
-			total = total.plus(v);
-		}
-
-		return total.divide(this.pointerHistory.size());
-	}
-	
 	private void mouseTranslate(int x, int y) {
 		Point current = Util.getMousePosition();
 		this.mouseMove(current.x + x, current.y + y);
