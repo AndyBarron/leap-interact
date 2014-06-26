@@ -16,7 +16,7 @@ import com.leapmotion.leap.Vector;
 public class DifferentialMapper extends Listener {
 	
 	private float interactionZ = 0;
-	private float scaleRangeZ = 250;
+	private double clickPinchDeg = 33d;
 
 	private final Robot robot;
 	
@@ -61,15 +61,19 @@ public class DifferentialMapper extends Listener {
 		
 		Hand hand = f.hands().get(0);
 		Finger indexFinger = hand.fingers().fingerType(Finger.Type.TYPE_INDEX).get(0);
+		Finger thumb = hand.fingers().fingerType(Finger.Type.TYPE_THUMB).get(0);
 		Vector pointer = indexFinger.stabilizedTipPosition();
-		float pinchLevel = hand.pinchStrength();
+		
+		float pinchRads = indexFinger.direction().angleTo(thumb.direction());
+		double pinchDeg = Math.toDegrees(pinchRads);
+		System.out.println(pinchDeg);
 		
 		if (pointer.getZ() > interactionZ) {
 			this.lastPointer = null;
 			return;
 		}
 		
-		if(pinchLevel >= 0.9f) {
+		if(pinchDeg <= clickPinchDeg) {
 			this.mouseClick();
 		} else {
 			this.mouseRelease();
@@ -77,9 +81,10 @@ public class DifferentialMapper extends Listener {
 		
 		if (this.lastPointer != null) {
 			Vector delta = pointer.minus(lastPointer);
-			float baseMult = 3.5f;
+			float baseMult = 2.5f;
 			//float mult = Util.mapRange(pointer.getZ(), interactionZ, interactionZ-scaleRangeZ, baseMult, 0, true);
-			float mult = clicking ? baseMult/2.0f : (1.0f-pinchLevel)*baseMult;
+			//float mult = clicking ? baseMult/2.0f : Util.mapRange(pinchLevel, 0f, clickPinchLevel, baseMult, 0f, true);
+			float mult = baseMult;
 			int dx = Math.round(delta.getX()*mult);
 			int dy = -Math.round(delta.getY()*mult);
 			this.mouseTranslate(dx,dy);
