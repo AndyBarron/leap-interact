@@ -5,6 +5,7 @@ import java.awt.Robot;
 import java.awt.event.InputEvent;
 import java.io.IOException;
 
+import com.leapmotion.leap.Bone;
 import com.leapmotion.leap.Controller;
 import com.leapmotion.leap.Controller.PolicyFlag;
 import com.leapmotion.leap.Finger;
@@ -16,7 +17,7 @@ import com.leapmotion.leap.Vector;
 public class DifferentialMapper extends Listener {
 	
 	private float interactionZ = 0;
-	private double clickPinchDeg = 33d;
+	private double clickPinchDist = 25f;
 
 	private final Robot robot;
 	
@@ -53,8 +54,9 @@ public class DifferentialMapper extends Listener {
 		// Get the most recent frame and report some basic information
 		Frame f = controller.frame();
 		// Robot r = this.robot;
+	
 		
-		if (f.hands().count() != 1 ) {
+		if (f.hands().count() != 1) {
 			this.lastPointer = null;
 			return;
 		}
@@ -62,18 +64,23 @@ public class DifferentialMapper extends Listener {
 		Hand hand = f.hands().get(0);
 		Finger indexFinger = hand.fingers().fingerType(Finger.Type.TYPE_INDEX).get(0);
 		Finger thumb = hand.fingers().fingerType(Finger.Type.TYPE_THUMB).get(0);
-		Vector pointer = indexFinger.stabilizedTipPosition();
+		Vector pointer = indexFinger.tipPosition();
 		
-		float pinchRads = indexFinger.direction().angleTo(thumb.direction());
-		double pinchDeg = Math.toDegrees(pinchRads);
-		System.out.println(pinchDeg);
+		if (hand.confidence() < 0.5f || !indexFinger.isExtended()) {
+			this.lastPointer = null;
+			return;
+		}
+		
+		Bone indexBone = indexFinger.bone(Bone.Type.TYPE_PROXIMAL);
+		float pinchDist = thumb.tipPosition().distanceTo(indexBone.center());
+		// System.out.println("pinchDist: " + pinchDist);
 		
 		if (pointer.getZ() > interactionZ) {
 			this.lastPointer = null;
 			return;
 		}
 		
-		if(pinchDeg <= clickPinchDeg) {
+		if(pinchDist <= clickPinchDist) {
 			this.mouseClick();
 		} else {
 			this.mouseRelease();
